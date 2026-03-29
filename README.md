@@ -1,11 +1,6 @@
 # hmac_impl
-
-hmac_impl - HMAC implementation using SHA-256 (via hashlib).
-
+Single-file Python CLI tool. Zero dependencies, Python 3.8+.
 ## Usage
-
 ```bash
 python3 hmac_impl.py --test
 ```
-
-Zero dependencies. Python 3.8+.
