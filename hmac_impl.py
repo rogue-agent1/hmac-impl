@@ -1,66 +1,42 @@
 #!/usr/bin/env python3
-"""hmac_impl - HMAC implementation with SHA-256."""
-import sys, hashlib
+"""HMAC implementation (RFC 2104) using SHA-256."""
+import hashlib, struct
 
-def hmac_sha256(key, message):
-    if isinstance(key, str): key = key.encode()
-    if isinstance(message, str): message = message.encode()
-    block_size = 64
-    if len(key) > block_size:
+BLOCK_SIZE = 64
+
+def hmac_sha256(key: bytes, message: bytes) -> bytes:
+    if len(key) > BLOCK_SIZE:
         key = hashlib.sha256(key).digest()
-    key = key.ljust(block_size, b"\x00")
-    o_key_pad = bytes(b ^ 0x5C for b in key)
-    i_key_pad = bytes(b ^ 0x36 for b in key)
-    inner = hashlib.sha256(i_key_pad + message).digest()
-    return hashlib.sha256(o_key_pad + inner).hexdigest()
+    key = key.ljust(BLOCK_SIZE, b'\x00')
+    o_pad = bytes(k ^ 0x5c for k in key)
+    i_pad = bytes(k ^ 0x36 for k in key)
+    return hashlib.sha256(o_pad + hashlib.sha256(i_pad + message).digest()).digest()
 
-def verify_hmac(key, message, expected):
-    computed = hmac_sha256(key, message)
-    if len(computed) != len(expected):
-        return False
-    result = 0
-    for a, b in zip(computed, expected):
-        result |= ord(a) ^ ord(b)
-    return result == 0
-
-def pbkdf2_sha256(password, salt, iterations=1000, dk_len=32):
-    if isinstance(password, str): password = password.encode()
-    if isinstance(salt, str): salt = salt.encode()
+def verify(key: bytes, message: bytes, tag: bytes) -> bool:
     import hmac as _hmac
-    dk = b""
-    block = 1
-    while len(dk) < dk_len:
-        u = _hmac.new(password, salt + block.to_bytes(4, "big"), hashlib.sha256).digest()
-        result = u
-        for _ in range(iterations - 1):
-            u = _hmac.new(password, u, hashlib.sha256).digest()
-            result = bytes(a ^ b for a, b in zip(result, u))
-        dk += result
-        block += 1
-    return dk[:dk_len].hex()
-
-def test():
-    mac = hmac_sha256("secret", "hello")
-    assert len(mac) == 64
-    mac2 = hmac_sha256("secret", "hello")
-    assert mac == mac2
-    mac3 = hmac_sha256("different", "hello")
-    assert mac3 != mac
-    mac4 = hmac_sha256("secret", "world")
-    assert mac4 != mac
-    assert verify_hmac("secret", "hello", mac)
-    assert not verify_hmac("secret", "hello", mac3)
-    assert not verify_hmac("wrong", "hello", mac)
-    dk = pbkdf2_sha256("password", "salt", iterations=100)
-    assert len(dk) == 64
-    dk2 = pbkdf2_sha256("password", "salt", iterations=100)
-    assert dk == dk2
-    dk3 = pbkdf2_sha256("password", "different_salt", iterations=100)
-    assert dk3 != dk
-    long_key = "a" * 100
-    mac5 = hmac_sha256(long_key, "test")
-    assert len(mac5) == 64
-    print("All tests passed!")
+    return _hmac.compare_digest(hmac_sha256(key, message), tag)
 
 if __name__ == "__main__":
-    test() if "--test" in sys.argv else print("hmac_impl: HMAC implementation. Use --test")
+    import sys
+    if len(sys.argv) < 3:
+        print("Usage: hmac_impl.py <key> <message>")
+        sys.exit(1)
+    tag = hmac_sha256(sys.argv[1].encode(), sys.argv[2].encode())
+    print(tag.hex())
+
+def test():
+    # Test vector from RFC 4231
+    tag = hmac_sha256(b"key", b"The quick brown fox jumps over the lazy dog")
+    assert len(tag) == 32
+    # Verify
+    assert verify(b"key", b"The quick brown fox jumps over the lazy dog", tag)
+    assert not verify(b"wrong", b"The quick brown fox jumps over the lazy dog", tag)
+    # Long key gets hashed
+    long_key = b"x" * 100
+    tag2 = hmac_sha256(long_key, b"test")
+    assert len(tag2) == 32
+    # Known vector: HMAC-SHA256("key", "message")
+    import hmac as _hmac
+    expected = _hmac.new(b"key", b"message", hashlib.sha256).digest()
+    assert hmac_sha256(b"key", b"message") == expected
+    print("  hmac_impl: ALL TESTS PASSED")

@@ -1,6 +1,17 @@
 # hmac_impl
-Single-file Python CLI tool. Zero dependencies, Python 3.8+.
+
+HMAC (Hash-based Message Authentication Code) implementation
+
+Single-file, zero-dependency Python CLI tool.
+
 ## Usage
+
 ```bash
-python3 hmac_impl.py --test
+python hmac_impl.py --help
+```
+
+## Test
+
+```bash
+python -c "import hmac_impl; hmac_impl.test()"
 ```
